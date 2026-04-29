@@ -1,0 +1,42 @@
+:root {
+    --c-primary:   #244991;
+    --c-accent:    #2D9EDF;
+    --c-gradient:  linear-gradient(135deg, #244991, #2D9EDF);
+    --c-red:       #e5534b;
+    --c-amber:     #f59e0b;
+    --c-green:     #2da44e;
+    --c-navy:      #1a2238;
+    --c-bg:        #ffffff;
+    --c-card:      #f4f8fd;
+    --c-border:    rgba(36,73,145,0.14);
+    --c-border-h:  rgba(45,158,223,0.35);
+    --r-card:      16px;
+    --shadow-sm:   0 2px 12px rgba(36,73,145,0.06);
+    --shadow-md:   0 4px 20px rgba(36,73,145,0.10);
+    --shadow-lg:   0 8px 32px rgba(45,158,223,0.20);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+.cra-app {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: #ffffff;
+    background-image: radial-gradient(circle, rgba(36,73,145,0.04) 1px, transparent 1px);
+    background-size: 24px 24px;
+    font-family: "Segoe UI", Inter, system-ui, sans-serif;
+    color: #1a2238;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+.cra-main {
+    flex: 1;
+    padding: 28px 32px;
+    max-width: 1200px;
+    width: 100%;
+    margin: 0 auto;
+}
+
+@media (max-width: 640px) { .cra-main { padding: 20px 16px; } }

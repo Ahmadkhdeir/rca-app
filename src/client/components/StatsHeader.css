@@ -1,0 +1,175 @@
+/* ── Header container ─────────────────────────────────────────── */
+
+.sh {
+    background: #fff;
+    border-bottom: 1px solid rgba(36,73,145,0.14);
+    padding: 24px 28px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    box-shadow: 0 2px 12px rgba(36,73,145,0.06);
+}
+
+/* ── Brand row ─────────────────────────────────────────────────── */
+
+.sh__brand {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.sh__logo {
+    width: 44px;
+    height: 44px;
+    background: linear-gradient(135deg, #244991, #2D9EDF);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+    box-shadow: 0 4px 14px rgba(45,158,223,0.35);
+}
+
+.sh__title {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+    color: #1a2238;
+    line-height: 1.2;
+}
+
+.sh__subtitle {
+    margin: 2px 0 0;
+    font-size: 13px;
+    color: rgba(26,34,56,0.55);
+}
+
+.sh__clear {
+    margin-left: auto;
+    padding: 6px 14px;
+    border: 1.5px solid rgba(36,73,145,0.14);
+    border-radius: 8px;
+    background: #fff;
+    font-size: 13px;
+    color: rgba(26,34,56,0.6);
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.12s, border-color 0.12s;
+}
+
+.sh__clear:hover {
+    background: #f4f8fd;
+    border-color: rgba(45,158,223,0.35);
+    color: #1a2238;
+}
+
+/* ── Stat cards ────────────────────────────────────────────────── */
+
+.sh__cards {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.sh__card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 14px 22px;
+    border-radius: 14px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    font-family: inherit;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    min-width: 90px;
+}
+
+.sh__card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(36,73,145,0.12);
+}
+
+.sh__card--active {
+    border-color: currentColor !important;
+    box-shadow: 0 4px 14px rgba(36,73,145,0.14);
+}
+
+.sh__card-count {
+    font-size: 30px;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.sh__card-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    margin-top: 4px;
+    opacity: 0.85;
+}
+
+.sh__card--high   { background: #fff0ef; color: #c0392b; }
+.sh__card--medium { background: #fffbeb; color: #92400e; }
+.sh__card--low    { background: #edfaf2; color: #1a7a3f; }
+.sh__card--all    { background: #f4f8fd; color: #244991; }
+
+/* ── Distribution bar ──────────────────────────────────────────── */
+
+.sh__dist {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.sh__dist-label {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: #2D9EDF;
+}
+
+.sh__dist-bar {
+    display: flex;
+    height: 28px;
+    border-radius: 8px;
+    overflow: hidden;
+    gap: 2px;
+}
+
+.sh__dist-seg {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.95);
+    transition: flex 0.4s ease;
+    min-width: 32px;
+    letter-spacing: 0.3px;
+}
+
+.sh__dist-seg--high   { background: #e5534b; }
+.sh__dist-seg--medium { background: #f59e0b; }
+.sh__dist-seg--low    { background: #2da44e; }
+
+.sh__dist-legend {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.sh__leg {
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.sh__leg--high   { color: #e5534b; }
+.sh__leg--medium { color: #f59e0b; }
+.sh__leg--low    { color: #2da44e; }
