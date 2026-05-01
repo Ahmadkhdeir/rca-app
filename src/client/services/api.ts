@@ -37,6 +37,11 @@ export const val = (f: string | FieldRef | undefined): string =>
 export const disp = (f: string | FieldRef | undefined): string =>
     typeof f === 'object' && f !== null ? f.display_value ?? f.value ?? '' : (f as string) ?? '';
 
+// sys_id can come back as a plain string OR as {value, display_value} with sysparm_display_value=all.
+// Always extract the string form before using as a URL parameter or cache key.
+export const sysId = (r: { sys_id: string | FieldRef }): string =>
+    val(r.sys_id as string | FieldRef);
+
 // If the reasons text starts with "[Title]\n", returns the bracketed title.
 // Used by the demo seeder so multiple demo records sharing one underlying
 // update set still show distinct titles in the dashboard.
@@ -52,26 +57,50 @@ export const resultName = (r: RiskResult): string => {
     return titleFromReasons(reasons) || disp(r.update_set) || 'Unknown Update Set';
 };
 
+export interface UpdateSet {
+    sys_id: string;
+    name: string;
+    state: string;
+    sys_updated_on: string;
+}
+
 // --- API calls ---
 
-export async function fetchRiskStats(): Promise<RiskStats> {
+export async function fetchUpdateSets(search = ''): Promise<UpdateSet[]> {
+    const base = 'state!=empty^ORDERBYDESCsys_updated_on';
+    const query = search.trim() ? `${base}^nameLIKE${search.trim()}` : base;
     const params = new URLSearchParams({
-        sysparm_count: 'true',
-        sysparm_group_by: 'risk_level',
+        sysparm_query: query,
+        sysparm_limit: '50',
+        sysparm_fields: 'sys_id,name,state,sys_updated_on',
+        sysparm_display_value: 'false',
     });
-    const res = await fetch(`/api/now/stats/x_488299_change_ri_risk_result?${params}`, {
+    const res = await fetch(`/api/now/table/sys_update_set?${params}`, {
         headers: JSON_HEADERS,
     });
     const json = await res.json();
+    return json?.result ?? [];
+}
+
+export async function fetchRiskStats(): Promise<RiskStats> {
+    // Use a plain table query instead of the aggregate API — more reliable across SN versions.
+    const params = new URLSearchParams({
+        sysparm_fields: 'risk_level',
+        sysparm_limit: '1000',
+        sysparm_display_value: 'false',
+    });
+    const res = await fetch(`/api/now/table/x_488299_change_ri_risk_result?${params}`, {
+        headers: JSON_HEADERS,
+    });
+    const json = await res.json();
+    const records: any[] = json?.result ?? [];
     const stats: RiskStats = { low: 0, medium: 0, high: 0, total: 0 };
-    const groups: any[] = json?.result?.stats?.count ?? [];
-    for (const g of groups) {
-        const level = g['groupby_fields']?.[0]?.value ?? '';
-        const count = parseInt(g.count ?? '0', 10);
-        if (level === 'low') stats.low = count;
-        if (level === 'medium') stats.medium = count;
-        if (level === 'high') stats.high = count;
-        stats.total += count;
+    for (const r of records) {
+        const level = (r.risk_level ?? '') as string;
+        if (level === 'low') stats.low++;
+        else if (level === 'medium') stats.medium++;
+        else if (level === 'high') stats.high++;
+        stats.total++;
     }
     return stats;
 }
@@ -84,7 +113,7 @@ export async function fetchRiskResults(filterLevel?: string | null, limit = 25):
         sysparm_query: query,
         sysparm_limit: String(limit),
         sysparm_display_value: 'all',
-        sysparm_fields: 'sys_id,number,update_set,risk_level,risk_score,record_count,analyzed_by,analyzed_at,reasons',
+        sysparm_fields: 'sys_id,number,update_set,risk_level,risk_score,record_count,analyzed_by,analyzed_at,reasons,recommendations,affected_tables',
     });
     const res = await fetch(`/api/now/table/x_488299_change_ri_risk_result?${params}`, {
         headers: JSON_HEADERS,
@@ -93,15 +122,87 @@ export async function fetchRiskResults(filterLevel?: string | null, limit = 25):
     return json?.result ?? [];
 }
 
-export async function fetchRiskResult(sysId: string): Promise<RiskResult | null> {
+export interface AnalysisApiResult {
+    result_sys_id: string;
+    risk_level: 'low' | 'medium' | 'high';
+    risk_score: number;
+    record_count: number;
+    affected_tables: string[];
+    sensitive_tables_count: number;
+    rules_count: number;
+    acl_count: number;
+    factors: { label: string; pts: number }[];
+    recommendations: string[];
+}
+
+export async function analyzeUpdateSet(updateSetSysId: string): Promise<AnalysisApiResult> {
+    const res = await fetch('/api/x_488299_change_ri/risk/analyze', {
+        method: 'POST',
+        headers: { ...TOKEN_HEADER, 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ update_set_sys_id: updateSetSysId }),
+    });
+    let json: any;
+    try {
+        json = await res.json();
+    } catch {
+        throw new Error(`HTTP ${res.status} — response was not JSON`);
+    }
+    if (!res.ok) {
+        // SN wraps errors as { error: { message, detail } } or our own { error: string }
+        const e = json?.error;
+        const msg = typeof e === 'string'
+            ? e
+            : (e?.message ?? e?.detail ?? `HTTP ${res.status}`);
+        throw new Error(msg);
+    }
+    // SN scripted REST wraps setBody() responses in { result: ... }
+    return (json?.result ?? json) as AnalysisApiResult;
+}
+
+export interface SysUser {
+    sys_id: string;
+    name: string;
+    email: string;
+    title: string;
+    photo?: string;
+}
+
+export async function fetchUsers(search: string): Promise<SysUser[]> {
+    if (!search.trim()) return [];
     const params = new URLSearchParams({
+        sysparm_query: `active=true^nameLIKE${search.trim()}`,
+        sysparm_limit: '10',
+        sysparm_fields: 'sys_id,name,email,title,photo',
+        sysparm_display_value: 'false',
+    });
+    const res = await fetch(`/api/now/table/sys_user?${params}`, { headers: JSON_HEADERS });
+    const json = await res.json();
+    return json?.result ?? [];
+}
+
+export async function assignReviewer(resultSysId: string, reviewerSysId: string, note: string): Promise<void> {
+    const res = await fetch(`/api/now/table/x_488299_change_ri_risk_result/${resultSysId}`, {
+        method: 'PATCH',
+        headers: { ...TOKEN_HEADER, 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ reviewer: reviewerSysId, reviewer_note: note }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
+export async function fetchRiskResult(sysId: string): Promise<RiskResult | null> {
+    // Use query-based list call instead of /{sysId} — avoids per-record ACL restriction
+    // and works even when sys_id gets URL-encoded as [object Object].
+    const params = new URLSearchParams({
+        sysparm_query: `sys_id=${sysId}`,
+        sysparm_limit: '1',
         sysparm_display_value: 'all',
         sysparm_fields:
             'sys_id,number,update_set,risk_level,risk_score,record_count,analyzed_by,analyzed_at,reasons,recommendations,affected_tables',
     });
-    const res = await fetch(`/api/now/table/x_488299_change_ri_risk_result/${sysId}?${params}`, {
+    const res = await fetch(`/api/now/table/x_488299_change_ri_risk_result?${params}`, {
         headers: JSON_HEADERS,
     });
     const json = await res.json();
-    return json?.result ?? null;
+    const results: RiskResult[] = json?.result ?? [];
+    return results[0] ?? null;
 }

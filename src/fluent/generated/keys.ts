@@ -5,6 +5,14 @@ declare global {
         namespace Internal {
             interface Keys extends KeysRegistry {
                 explicit: {
+                    'api-risk-analyze': {
+                        table: 'sys_ws_definition'
+                        id: 'd135b3edf8034a4b99765e5176351e31'
+                    }
+                    'api-risk-analyze-post': {
+                        table: 'sys_ws_operation'
+                        id: 'feed9fc1cca244ef8cb24c4a02a162c9'
+                    }
                     'app-menu-cra': {
                         table: 'sys_app_application'
                         id: 'fc9d0920e5c744f384c27d5d51e38cd9'
@@ -70,6 +78,10 @@ declare global {
                     'si-update-set-reader': {
                         table: 'sys_script_include'
                         id: '39eadbc2463046958a5c9934c31905c7'
+                    }
+                    'src_server_rest-api_RiskAnalyzeApi_server_js': {
+                        table: 'sys_module'
+                        id: '62b8485060cb4da3a6818cde11600057'
                     }
                     src_server_script_js: {
                         table: 'sys_module'
@@ -261,6 +273,14 @@ declare global {
                         }
                     },
                     {
+                        table: 'sys_dictionary'
+                        id: '8c2aecc11a794b77869cfc595b5a2910'
+                        key: {
+                            name: 'x_488299_change_ri_risk_result'
+                            element: 'reviewer_note'
+                        }
+                    },
+                    {
                         table: 'sys_choice'
                         id: '96f7d47e8d6b44bcbf7ffd87227d2e20'
                         key: {
@@ -358,6 +378,14 @@ declare global {
                         }
                     },
                     {
+                        table: 'sys_dictionary'
+                        id: 'd7dca0c80405424f8011af4f259a3150'
+                        key: {
+                            name: 'x_488299_change_ri_risk_result'
+                            element: 'reviewer'
+                        }
+                    },
+                    {
                         table: 'sys_documentation'
                         id: 'd9d3f2831663418ea824258ee26ab1e5'
                         key: {
@@ -379,6 +407,24 @@ declare global {
                         id: 'e71301f883ab4bc0adc7789c57597c7d'
                         key: {
                             name: 'x_488299_change_ri/main.js.map'
+                        }
+                    },
+                    {
+                        table: 'sys_documentation'
+                        id: 'f058508258724db580bb0fa9a7b3e1df'
+                        key: {
+                            name: 'x_488299_change_ri_risk_result'
+                            element: 'reviewer'
+                            language: 'en'
+                        }
+                    },
+                    {
+                        table: 'sys_documentation'
+                        id: 'fcc27b443f2b46468c12e8a47b7166e4'
+                        key: {
+                            name: 'x_488299_change_ri_risk_result'
+                            element: 'reviewer_note'
+                            language: 'en'
                         }
                     },
                     {

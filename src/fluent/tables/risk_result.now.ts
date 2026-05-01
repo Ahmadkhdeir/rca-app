@@ -54,5 +54,13 @@ export const x_488299_change_ri_risk_result = Table({
         analyzed_at: DateTimeColumn({
             label: 'Analyzed At',
         }),
+        reviewer: ReferenceColumn({
+            label: 'Reviewer',
+            referenceTable: 'sys_user',
+        }),
+        reviewer_note: StringColumn({
+            label: 'Reviewer Note',
+            maxLength: 500,
+        }),
     },
 })

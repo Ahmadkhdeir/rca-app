@@ -6,6 +6,7 @@
 }
 
 @keyframes db-fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes db-spin { to { transform: rotate(360deg); } }
 
 /* Hero header */
 .db__hero {

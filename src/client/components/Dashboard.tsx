@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { fetchRiskStats, fetchRiskResults, val, disp, resultName, type RiskStats, type RiskResult } from '../services/api';
+import { fetchRiskStats, fetchRiskResults, val, disp, resultName, sysId as getSysId, type RiskStats, type RiskResult } from '../services/api';
 import { navigate } from '../utils/navigation';
+import { cacheRecord } from '../utils/recordCache';
 import DonutChart from './DonutChart';
 import RiskTrendChart from './RiskTrendChart';
 import { MOCK_STATS, MOCK_RESULTS } from '../utils/mockData';
@@ -46,15 +47,23 @@ function StatCard({ metaKey, value, onClick, index }: { metaKey: string; value: 
     );
 }
 
-function MiniCard({ record, index }: { record: RiskResult; index: number }) {
+function MiniCard({ record, index, isMock }: { record: RiskResult; index: number; isMock: boolean }) {
     const level = val(record.risk_level) || 'low';
     const m = RISK_META[level] ?? RISK_META.low;
     const score = parseInt(val(record.risk_score) || '0', 10);
     const name = resultName(record);
     const at = disp(record.analyzed_at) || '';
+
+    function handleClick() {
+        if (isMock) { navigate('analyze'); return; }
+        cacheRecord(record);
+        navigate('detail', { id: getSysId(record) }, name);
+    }
+
     return (
         <button className="db-mini" style={{ animationDelay: `${index * 50}ms` } as React.CSSProperties}
-            onClick={() => navigate('detail', { id: record.sys_id }, name)}>
+            onClick={handleClick}
+            title={isMock ? 'Run a real analysis to view details' : name}>
             <div className="db-mini__stripe" style={{ background: m.accent }} />
             <div className="db-mini__body">
                 <span className="db-mini__badge" style={{ background: m.bg, color: m.text }}>
@@ -77,9 +86,13 @@ export default function Dashboard() {
     const [stats, setStats] = useState<RiskStats>({ low: 0, medium: 0, high: 0, total: 0 });
     const [recent, setRecent] = useState<RiskResult[]>([]);
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [usingMock, setUsingMock] = useState(false);
 
-    useEffect(() => {
+    function load(isRefresh = false) {
+        if (isRefresh) setRefreshing(true);
+        else setLoading(true);
+        setUsingMock(false);
         Promise.all([fetchRiskStats(), fetchRiskResults(null, 20)])
             .then(([s, r]) => {
                 if (s.total === 0 && r.length === 0) {
@@ -96,8 +109,10 @@ export default function Dashboard() {
                 setRecent(MOCK_RESULTS);
                 setUsingMock(true);
             })
-            .finally(() => setLoading(false));
-    }, []);
+            .finally(() => { setLoading(false); setRefreshing(false); });
+    }
+
+    useEffect(() => { load(); }, []);
 
     const pct = (n: number) => stats.total > 0 ? Math.round(n / stats.total * 100) : 0;
 
@@ -115,10 +130,29 @@ export default function Dashboard() {
             <div className="db__hero">
                 <div className="db__hero-content">
                     <div className="db__hero-text">
-                        <h1 className="db__title">
-                            Risk Dashboard
-                            {usingMock && <span className="db__demo-tag">DEMO DATA</span>}
-                        </h1>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <h1 className="db__title" style={{ margin: 0 }}>
+                                Risk Dashboard
+                                {usingMock && <span className="db__demo-tag">DEMO DATA</span>}
+                            </h1>
+                            <button
+                                onClick={() => load(true)}
+                                disabled={refreshing}
+                                title="Refresh dashboard"
+                                style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                                    padding: '5px 12px', borderRadius: 8,
+                                    border: '1px solid rgba(36,73,145,0.18)',
+                                    background: '#fff', color: '#244991',
+                                    fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                                    fontFamily: 'inherit', flexShrink: 0,
+                                    opacity: refreshing ? 0.6 : 1,
+                                    transition: 'opacity .15s',
+                                }}>
+                                <span style={{ display: 'inline-block', animation: refreshing ? 'db-spin .7s linear infinite' : 'none' }}>↻</span>
+                                {refreshing ? 'Refreshing…' : 'Refresh'}
+                            </button>
+                        </div>
                         <p className="db__sub">Analyze Update Sets and classify change risk before deployment</p>
                     </div>
                     {stats.total > 0 && (
@@ -205,7 +239,7 @@ export default function Dashboard() {
                     )}
                     {!loading && miniList.length > 0 && (
                         <div className="db__mini-list">
-                            {miniList.map((r, i) => <MiniCard key={r.sys_id} record={r} index={i} />)}
+                            {miniList.map((r, i) => <MiniCard key={getSysId(r)} record={r} index={i} isMock={usingMock} />)}
                         </div>
                     )}
                 </div>

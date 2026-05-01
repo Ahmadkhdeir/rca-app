@@ -1,43 +1,29 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import ScoreGauge from './ScoreGauge';
 import AIExplainPanel from './AIExplainPanel';
+import { fetchUpdateSets, analyzeUpdateSet, fetchUsers, assignReviewer, type UpdateSet, type AnalysisApiResult, type SysUser } from '../services/api';
 import './AnalyzePage.css';
 
 /* -------------------------------------------------------------------------- */
 /* Mock data                                                                   */
 /* -------------------------------------------------------------------------- */
 
-interface MockUpdateSet {
-    id: string;
-    name: string;
-    state: 'in_progress' | 'complete';
-    changes: number;
-    updatedHoursAgo: number;
-    profile: 'high' | 'medium' | 'low';
-}
+const STATE_LABEL: Record<string, string> = {
+    in_progress: 'In Progress',
+    complete:    'Complete',
+    loaded:      'Loaded',
+    ignore:      'Ignored',
+};
 
-const MOCK_SETS: MockUpdateSet[] = [
-    { id: 'us-001', name: 'Bulk ACL update on sys_user_role',          state: 'in_progress', changes: 27, updatedHoursAgo: 2,   profile: 'high' },
-    { id: 'us-002', name: 'Incident form rebuild + business rules',    state: 'in_progress', changes: 14, updatedHoursAgo: 5,   profile: 'high' },
-    { id: 'us-003', name: 'Catalog Items — Hardware Request bundle',   state: 'in_progress', changes: 9,  updatedHoursAgo: 11,  profile: 'high' },
-    { id: 'us-004', name: 'New REST API for asset sync',               state: 'in_progress', changes: 6,  updatedHoursAgo: 22,  profile: 'medium' },
-    { id: 'us-005', name: 'Notification template refresh',             state: 'complete',    changes: 11, updatedHoursAgo: 34,  profile: 'medium' },
-    { id: 'us-006', name: 'Problem table dictionary additions',        state: 'complete',    changes: 5,  updatedHoursAgo: 50,  profile: 'medium' },
-    { id: 'us-007', name: 'CMDB relationship rule tuning',             state: 'complete',    changes: 4,  updatedHoursAgo: 76,  profile: 'medium' },
-    { id: 'us-008', name: 'Knowledge base v3 article migration',       state: 'in_progress', changes: 18, updatedHoursAgo: 92,  profile: 'medium' },
-    { id: 'us-009', name: 'Field label cleanup on cmdb_ci_server',     state: 'complete',    changes: 3,  updatedHoursAgo: 120, profile: 'low' },
-    { id: 'us-010', name: 'Add new choice value to incident state',    state: 'complete',    changes: 2,  updatedHoursAgo: 144, profile: 'low' },
-    { id: 'us-011', name: 'Minor copy edits to login page',            state: 'complete',    changes: 2,  updatedHoursAgo: 168, profile: 'low' },
-    { id: 'us-012', name: 'Fix typo in welcome email template',        state: 'complete',    changes: 1,  updatedHoursAgo: 200, profile: 'low' },
-];
+const STATE_STYLE: Record<string, { background: string; color: string }> = {
+    in_progress: { background: '#fff0d6', color: '#b45309' },
+    complete:    { background: '#dcfce7', color: '#166534' },
+    loaded:      { background: '#dbeafe', color: '#1e40af' },
+    ignore:      { background: '#f1f5f9', color: '#64748b' },
+};
 
-const REVIEWERS = [
-    { id: 'u1', name: 'Sarah Chen',    role: 'Security Lead',     initials: 'SC', color: '#ef4444' },
-    { id: 'u2', name: 'Marcus Patel',  role: 'Platform Architect', initials: 'MP', color: '#6366f1' },
-    { id: 'u3', name: 'Diana Lopez',   role: 'ITSM Process Owner', initials: 'DL', color: '#10b981' },
-    { id: 'u4', name: 'Kenji Tanaka',  role: 'Release Manager',    initials: 'KT', color: '#f59e0b' },
-    { id: 'u5', name: 'Aisha Hassan',  role: 'CMDB Lead',          initials: 'AH', color: '#8b5cf6' },
-];
+const normalizeState = (s: string) => s.toLowerCase().replace(/[\s-]/g, '_');
+
 
 const STAGES = [
     { id: 'read',   icon: '🔍', label: 'Reading update set',         msg: (n: number) => `${n} records found` },
@@ -62,7 +48,7 @@ interface AnalysisResult {
     affectedTables: string[];
 }
 
-const RESULTS: Record<MockUpdateSet['profile'], (changes: number) => AnalysisResult> = {
+const RESULTS: Record<'high' | 'medium' | 'low', (changes: number) => AnalysisResult> = {
     high: (n) => ({
         score: 78,
         level: 'high',
@@ -134,11 +120,13 @@ const META: Record<string, { accent: string; bg: string; text: string }> = {
 /* Helpers                                                                     */
 /* -------------------------------------------------------------------------- */
 
-function formatAge(hours: number): string {
+function formatAge(snDate: string): string {
+    if (!snDate) return '';
+    const d = new Date(snDate.replace(' ', 'T') + 'Z');
+    const hours = Math.round((Date.now() - d.getTime()) / 3_600_000);
     if (hours < 1)  return 'just now';
     if (hours < 24) return `${hours}h ago`;
-    const d = Math.floor(hours / 24);
-    return `${d}d ago`;
+    return `${Math.floor(hours / 24)}d ago`;
 }
 
 function useTickingNumber(target: number, active: boolean, durationMs = 700) {
@@ -162,9 +150,12 @@ function useTickingNumber(target: number, active: boolean, durationMs = 700) {
 /* Update Set picker                                                           */
 /* -------------------------------------------------------------------------- */
 
-function UpdateSetPicker({ value, onSelect }: { value: MockUpdateSet | null; onSelect: (s: MockUpdateSet) => void }) {
-    const [open, setOpen] = useState(false);
-    const [q, setQ] = useState('');
+function UpdateSetPicker({ value, onSelect }: { value: UpdateSet | null; onSelect: (s: UpdateSet) => void }) {
+    const [open, setOpen]       = useState(false);
+    const [q, setQ]             = useState('');
+    const [sets, setSets]       = useState<UpdateSet[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError]     = useState(false);
     const ref = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -173,11 +164,19 @@ function UpdateSetPicker({ value, onSelect }: { value: MockUpdateSet | null; onS
         return () => document.removeEventListener('mousedown', close);
     }, []);
 
-    const filtered = useMemo(() => {
-        const term = q.trim().toLowerCase();
-        if (!term) return MOCK_SETS;
-        return MOCK_SETS.filter(s => s.name.toLowerCase().includes(term));
-    }, [q]);
+    useEffect(() => {
+        if (!open) return;
+        setLoading(true);
+        setError(false);
+        fetchUpdateSets()
+            .then(setSets)
+            .catch(() => setError(true))
+            .finally(() => setLoading(false));
+    }, [open]);
+
+    const filtered = q.trim()
+        ? sets.filter(s => s.name.toLowerCase().includes(q.trim().toLowerCase()))
+        : sets;
 
     return (
         <div className="ap-picker" ref={ref}>
@@ -188,10 +187,10 @@ function UpdateSetPicker({ value, onSelect }: { value: MockUpdateSet | null; onS
                         <div className="ap-picker__selected">
                             <span className="ap-picker__sel-name">{value.name}</span>
                             <span className="ap-picker__sel-meta">
-                                <span className={`ap-state ap-state--${value.state}`}>
-                                    {value.state === 'in_progress' ? 'In progress' : 'Complete'}
+                                <span className="ap-state" style={STATE_STYLE[normalizeState(value.state)] ?? {}}>
+                                    {STATE_LABEL[normalizeState(value.state)] ?? value.state}
                                 </span>
-                                · {value.changes} changes · {formatAge(value.updatedHoursAgo)}
+                                · updated {formatAge(value.sys_updated_on)}
                             </span>
                         </div>
                         <span className="ap-picker__chev">{open ? '▾' : '▸'}</span>
@@ -214,20 +213,18 @@ function UpdateSetPicker({ value, onSelect }: { value: MockUpdateSet | null; onS
                         onChange={(e) => setQ(e.target.value)}
                     />
                     <div className="ap-picker__list">
-                        {filtered.length === 0 && (
-                            <div className="ap-picker__empty">No matches</div>
-                        )}
-                        {filtered.map(s => (
-                            <button key={s.id} className="ap-picker__item"
+                        {loading && <div className="ap-picker__empty">Loading…</div>}
+                        {!loading && error && <div className="ap-picker__empty">Could not load update sets.</div>}
+                        {!loading && !error && filtered.length === 0 && <div className="ap-picker__empty">No matches</div>}
+                        {!loading && !error && filtered.map(s => (
+                            <button key={s.sys_id} className="ap-picker__item"
                                 onClick={() => { onSelect(s); setOpen(false); setQ(''); }}>
                                 <div className="ap-picker__item-main">
                                     <span className="ap-picker__item-name">{s.name}</span>
-                                    <span className="ap-picker__item-meta">
-                                        {s.changes} changes · updated {formatAge(s.updatedHoursAgo)}
-                                    </span>
+                                    <span className="ap-picker__item-meta">updated {formatAge(s.sys_updated_on)}</span>
                                 </div>
-                                <span className={`ap-state ap-state--${s.state}`}>
-                                    {s.state === 'in_progress' ? 'In progress' : 'Complete'}
+                                <span className="ap-state" style={STATE_STYLE[normalizeState(s.state)] ?? {}}>
+                                    {STATE_LABEL[normalizeState(s.state)] ?? s.state}
                                 </span>
                             </button>
                         ))}
@@ -235,6 +232,77 @@ function UpdateSetPicker({ value, onSelect }: { value: MockUpdateSet | null; onS
                 </div>
             )}
         </div>
+    );
+}
+
+/* -------------------------------------------------------------------------- */
+/* User avatar                                                                 */
+/* -------------------------------------------------------------------------- */
+
+function UserAvatar({ user, size = 32 }: { user: SysUser; size?: number }) {
+    const [failed, setFailed] = useState(false);
+    const initial = user.name.charAt(0).toUpperCase();
+    const style: React.CSSProperties = {
+        width: size, height: size, borderRadius: '50%',
+        background: '#6366f1', color: '#fff',
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: size * 0.4, fontWeight: 700, flexShrink: 0, overflow: 'hidden',
+    };
+    if (user.photo && !failed) {
+        return (
+            <span style={style}>
+                <img
+                    src={`/api/now/attachment/${user.photo}/file`}
+                    onError={() => setFailed(true)}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    alt={user.name}
+                />
+            </span>
+        );
+    }
+    return <span style={style}>{initial}</span>;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Affected tables                                                             */
+/* -------------------------------------------------------------------------- */
+
+const TABLE_LIMIT = 8;
+
+function AffectedTables({ tables, accent }: { tables: string[]; accent: string }) {
+    const [expanded, setExpanded] = useState(false);
+    if (tables.length === 0) {
+        return (
+            <>
+                <h3 className="ap-result__h ap-result__h--mt">Affected Tables</h3>
+                <div className="ap-tags"><span className="ap-tags__empty">No tables recorded in this update set</span></div>
+            </>
+        );
+    }
+    const visible = expanded ? tables : tables.slice(0, TABLE_LIMIT);
+    const hidden  = tables.length - TABLE_LIMIT;
+    return (
+        <>
+            <h3 className="ap-result__h ap-result__h--mt">
+                Affected Tables
+                <span className="ap-result__h-count">{tables.length}</span>
+            </h3>
+            <div className="ap-tags">
+                {visible.map(t => <span key={t} className="ap-tag">{t}</span>)}
+                {!expanded && hidden > 0 && (
+                    <button className="ap-tag ap-tag--more" style={{ color: accent }}
+                        onClick={() => setExpanded(true)}>
+                        +{hidden} more
+                    </button>
+                )}
+                {expanded && hidden > 0 && (
+                    <button className="ap-tag ap-tag--more" style={{ color: accent }}
+                        onClick={() => setExpanded(false)}>
+                        Show less
+                    </button>
+                )}
+            </div>
+        </>
     );
 }
 
@@ -279,9 +347,44 @@ function StageCard({
 /* Reviewer modal                                                              */
 /* -------------------------------------------------------------------------- */
 
-function ReviewerModal({ onClose, onAssign }: { onClose: () => void; onAssign: (r: typeof REVIEWERS[number], note: string) => void }) {
-    const [picked, setPicked] = useState<typeof REVIEWERS[number] | null>(null);
-    const [note, setNote] = useState('');
+function ReviewerModal({ resultSysId, onClose, onAssign }: {
+    resultSysId: string;
+    onClose: () => void;
+    onAssign: (r: SysUser, note: string) => void;
+}) {
+    const [q, setQ]           = useState('');
+    const [users, setUsers]   = useState<SysUser[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [picked, setPicked] = useState<SysUser | null>(null);
+    const [note, setNote]     = useState('');
+    const [saving, setSaving] = useState(false);
+    const [saveErr, setSaveErr] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!q.trim()) { setUsers([]); return; }
+        setLoading(true);
+        const t = setTimeout(() => {
+            fetchUsers(q)
+                .then(setUsers)
+                .catch(() => setUsers([]))
+                .finally(() => setLoading(false));
+        }, 300);
+        return () => clearTimeout(t);
+    }, [q]);
+
+    async function handleAssign() {
+        if (!picked) return;
+        setSaving(true);
+        setSaveErr(null);
+        try {
+            await assignReviewer(resultSysId, picked.sys_id, note);
+            onAssign(picked, note);
+        } catch {
+            setSaveErr('Could not save — please try again.');
+            setSaving(false);
+        }
+    }
+
     return (
         <div className="ap-modal-backdrop" onClick={onClose}>
             <div className="ap-modal" onClick={(e) => e.stopPropagation()}>
@@ -290,37 +393,51 @@ function ReviewerModal({ onClose, onAssign }: { onClose: () => void; onAssign: (
                     <button className="ap-modal__x" onClick={onClose}>×</button>
                 </div>
                 <div className="ap-modal__body">
-                    <p className="ap-modal__sub">Select someone to review this high-risk change before promotion.</p>
-                    <div className="ap-rev-list">
-                        {REVIEWERS.map(r => (
-                            <button key={r.id}
-                                className={`ap-rev${picked?.id === r.id ? ' ap-rev--on' : ''}`}
-                                onClick={() => setPicked(r)}>
-                                <span className="ap-rev__avatar" style={{ background: r.color }}>{r.initials}</span>
-                                <div className="ap-rev__info">
-                                    <span className="ap-rev__name">{r.name}</span>
-                                    <span className="ap-rev__role">{r.role}</span>
-                                </div>
-                                {picked?.id === r.id && (
-                                    <svg viewBox="0 0 24 24" width="18" height="18">
-                                        <path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#10b981"
-                                            strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-                                    </svg>
-                                )}
-                            </button>
-                        ))}
-                    </div>
+                    <p className="ap-modal__sub">Search for a user to review this change before promotion.</p>
+                    <input
+                        autoFocus
+                        className="ap-picker__search"
+                        placeholder="Search by name…"
+                        value={q}
+                        onChange={(e) => { setQ(e.target.value); setPicked(null); }}
+                    />
+                    {loading && <div className="ap-modal__hint">Searching…</div>}
+                    {!loading && q.trim() && users.length === 0 && (
+                        <div className="ap-modal__hint">No users found</div>
+                    )}
+                    {!loading && users.length > 0 && (
+                        <div className="ap-rev-list">
+                            {users.map(u => (
+                                <button key={u.sys_id}
+                                    className={`ap-rev${picked?.sys_id === u.sys_id ? ' ap-rev--on' : ''}`}
+                                    onClick={() => setPicked(u)}>
+                                    <UserAvatar user={u} size={36} />
+                                    <div className="ap-rev__info">
+                                        <span className="ap-rev__name">{u.name}</span>
+                                        <span className="ap-rev__role">{u.email || u.title || ''}</span>
+                                    </div>
+                                    {picked?.sys_id === u.sys_id && (
+                                        <svg viewBox="0 0 24 24" width="18" height="18">
+                                            <path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#10b981"
+                                                strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                                        </svg>
+                                    )}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                     <label className="ap-modal__label">Note (optional)</label>
                     <textarea className="ap-modal__note" rows={3}
                         placeholder="Add context for the reviewer…"
                         value={note} onChange={(e) => setNote(e.target.value)} />
+                    {saveErr && <div className="ap-modal__err">{saveErr}</div>}
                 </div>
                 <div className="ap-modal__footer">
                     <button className="ap-btn ap-btn--ghost" onClick={onClose}>Cancel</button>
                     <button className="ap-btn ap-btn--primary"
-                        disabled={!picked}
-                        onClick={() => picked && onAssign(picked, note)}>
-                        Assign reviewer
+                        disabled={!picked || saving}
+                        onClick={handleAssign}>
+                        {saving ? 'Saving…' : 'Assign reviewer'}
                     </button>
                 </div>
             </div>
@@ -348,7 +465,7 @@ function Toast({ msg, kind = 'success' }: { msg: string; kind?: 'success' | 'inf
 type Phase = 'idle' | 'running' | 'done';
 
 export default function AnalyzePage() {
-    const [selected, setSelected] = useState<MockUpdateSet | null>(null);
+    const [selected, setSelected] = useState<UpdateSet | null>(null);
     const [phase, setPhase] = useState<Phase>('idle');
     const [stageStatus, setStageStatus] = useState<Record<StageId, 'pending' | 'running' | 'done'>>(
         () => Object.fromEntries(STAGES.map(s => [s.id, 'pending'])) as any
@@ -358,8 +475,9 @@ export default function AnalyzePage() {
     );
     const [result, setResult] = useState<AnalysisResult | null>(null);
 
+    const [resultSysId, setResultSysId] = useState<string | null>(null);
     const [showReviewerModal, setShowReviewerModal] = useState(false);
-    const [assignedReviewer, setAssignedReviewer] = useState<typeof REVIEWERS[number] | null>(null);
+    const [assignedReviewer, setAssignedReviewer] = useState<SysUser | null>(null);
     const [acknowledged, setAcknowledged] = useState(false);
     const [chgNumber, setChgNumber] = useState<string | null>(null);
     const [toast, setToast] = useState<{ msg: string; kind?: 'success' | 'info' } | null>(null);
@@ -374,6 +492,7 @@ export default function AnalyzePage() {
         setStageStatus(Object.fromEntries(STAGES.map(s => [s.id, 'pending'])) as any);
         setStageValues(Object.fromEntries(STAGES.map(s => [s.id, null])) as any);
         setResult(null);
+        setResultSysId(null);
         setAssignedReviewer(null);
         setAcknowledged(false);
         setChgNumber(null);
@@ -384,28 +503,64 @@ export default function AnalyzePage() {
         reset();
         setPhase('running');
 
-        const r = RESULTS[selected.profile](selected.changes);
-        const stageValueMap: Record<StageId, number | string> = {
-            read:   r.recordCount,
-            tables: r.sensitiveTables,
-            rules:  r.rulesModified,
-            acls:   r.aclChanges,
-            score:  r.score,
-            class:  r.level,
-        };
-        const delays: Record<StageId, number> = {
-            read: 600, tables: 500, rules: 500, acls: 450, score: 700, class: 500,
-        };
+        // Fire real analysis — runs in parallel with stage animations
+        const analysisPromise = analyzeUpdateSet(selected.sys_id);
 
-        for (const s of STAGES) {
+        const earlyDelays: Record<string, number> = { read: 600, tables: 500, rules: 500, acls: 450 };
+
+        // Animate stages 1–4 while the server analyses
+        for (const s of STAGES.slice(0, 4)) {
             setStageStatus(prev => ({ ...prev, [s.id]: 'running' }));
-            await new Promise(res => setTimeout(res, delays[s.id]));
-            setStageValues(prev => ({ ...prev, [s.id]: stageValueMap[s.id] }));
+            await new Promise(res => setTimeout(res, earlyDelays[s.id]));
             setStageStatus(prev => ({ ...prev, [s.id]: 'done' }));
         }
 
+        // Keep score stage spinning until API returns
+        setStageStatus(prev => ({ ...prev, score: 'running' }));
+
+        let api: AnalysisApiResult;
+        try {
+            api = await analysisPromise;
+        } catch (e: any) {
+            setPhase('idle');
+            showToast('Analysis failed: ' + (e?.message ?? 'unknown error'), 'info');
+            return;
+        }
+
+        // Backfill early stage values now that we have real data
+        setStageValues({
+            read:   api.record_count,
+            tables: api.sensitive_tables_count,
+            rules:  api.rules_count,
+            acls:   api.acl_count,
+            score:  null,
+            class:  null,
+        });
+
+        // Animate score stage with real value
+        await new Promise(res => setTimeout(res, 700));
+        setStageValues(prev => ({ ...prev, score: api.risk_score }));
+        setStageStatus(prev => ({ ...prev, score: 'done', class: 'running' }));
+
+        // Animate class stage with real risk level
+        await new Promise(res => setTimeout(res, 500));
+        setStageValues(prev => ({ ...prev, class: api.risk_level }));
+        setStageStatus(prev => ({ ...prev, class: 'done' }));
+
         await new Promise(res => setTimeout(res, 250));
-        setResult(r);
+
+        setResultSysId(api.result_sys_id);
+        setResult({
+            score:           api.risk_score,
+            level:           api.risk_level,
+            recordCount:     api.record_count,
+            sensitiveTables: api.sensitive_tables_count,
+            rulesModified:   api.rules_count,
+            aclChanges:      api.acl_count,
+            factors:         api.factors,
+            recommendations: api.recommendations,
+            affectedTables:  api.affected_tables,
+        });
         setPhase('done');
     }
 
@@ -491,10 +646,7 @@ export default function AnalyzePage() {
                                 ))}
                             </div>
 
-                            <h3 className="ap-result__h ap-result__h--mt">Affected Tables</h3>
-                            <div className="ap-tags">
-                                {result.affectedTables.map(t => <span key={t} className="ap-tag">{t}</span>)}
-                            </div>
+                            <AffectedTables tables={result.affectedTables} accent={m.accent} />
                         </div>
 
                         <div className="ap-result__col">
@@ -542,9 +694,7 @@ export default function AnalyzePage() {
                                     </span>
                                 </div>
                                 {assignedReviewer && (
-                                    <span className="ap-action__avatar" style={{ background: assignedReviewer.color }}>
-                                        {assignedReviewer.initials}
-                                    </span>
+                                    <UserAvatar user={assignedReviewer} size={32} />
                                 )}
                             </button>
 
@@ -589,8 +739,9 @@ export default function AnalyzePage() {
                 </div>
             )}
 
-            {showReviewerModal && (
+            {showReviewerModal && resultSysId && (
                 <ReviewerModal
+                    resultSysId={resultSysId}
                     onClose={() => setShowReviewerModal(false)}
                     onAssign={(r, note) => {
                         setAssignedReviewer(r);

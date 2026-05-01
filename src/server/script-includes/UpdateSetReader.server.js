@@ -71,7 +71,9 @@ UpdateSetReader.prototype = {
         while (xmlGr.next()) {
             summary.recordCount++;
 
-            var table = xmlGr.getValue('name') || '';
+            var rawName = xmlGr.getValue('name') || '';
+            // sys_update_xml.name is "<table_name>_<32-char-sys_id>" — strip the sys_id suffix
+            var table = rawName.replace(/_[0-9a-f]{32}$/i, '') || rawName;
             var action = xmlGr.getValue('action') || '';
             var type = xmlGr.getValue('type') || '';
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { fetchRiskResult, val, disp, resultName, type RiskResult } from '../services/api';
 import { navigate } from '../utils/navigation';
+import { getCachedRecord } from '../utils/recordCache';
 import ScoreGauge from './ScoreGauge';
 import AIExplainPanel from './AIExplainPanel';
 import './AnalysisDetail.css';
@@ -57,6 +58,12 @@ export default function AnalysisDetail({ sysId }: Props) {
     const [error, setError] = useState(false);
 
     useEffect(() => {
+        const cached = getCachedRecord(sysId);
+        if (cached) {
+            setRecord(cached);
+            setLoading(false);
+            return;
+        }
         setLoading(true);
         fetchRiskResult(sysId)
             .then(r => { setRecord(r); if (!r) setError(true); })
@@ -74,7 +81,13 @@ export default function AnalysisDetail({ sysId }: Props) {
     if (error || !record) return (
         <div className="det__center">
             <button className="det__back-btn" onClick={() => navigate('list')}>← Back</button>
-            <p style={{ color: '#94a3b8' }}>Could not load this record.</p>
+            <p style={{ color: '#94a3b8', margin: '8px 0 4px' }}>Could not load this record.</p>
+            <p style={{ color: '#cbd5e1', fontSize: 12 }}>
+                The analysis may not be saved yet, or you may not have read access.<br />
+                Try running the analysis again from the <button
+                    style={{ background: 'none', border: 'none', color: '#2D9EDF', cursor: 'pointer', fontSize: 12, padding: 0, textDecoration: 'underline' }}
+                    onClick={() => navigate('analyze')}>Analyze page</button>.
+            </p>
         </div>
     );
 

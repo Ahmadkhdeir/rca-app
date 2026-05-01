@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { fetchRiskResults, type RiskResult } from '../services/api';
+import { fetchRiskResults, resultName, sysId as getSysId, type RiskResult } from '../services/api';
 import { navigate } from '../utils/navigation';
+import { cacheRecord } from '../utils/recordCache';
 import AnalysisCard from './AnalysisCard';
 
 const FILTERS = [
@@ -97,10 +98,13 @@ export default function AnalysisList({ initialFilter }: Props) {
             {!loading && !error && results.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {results.map((r, i) => (
-                        <div key={r.sys_id} style={{ animationDelay: `${i * 40}ms` }}>
+                        <div key={getSysId(r)} style={{ animationDelay: `${i * 40}ms` }}>
                             <AnalysisCard
                                 record={r}
-                                onClick={() => navigate('detail', { id: r.sys_id }, `${r.sys_id} Analysis`)}
+                                onClick={() => {
+                                    cacheRecord(r);
+                                    navigate('detail', { id: getSysId(r) }, resultName(r));
+                                }}
                             />
                         </div>
                     ))}

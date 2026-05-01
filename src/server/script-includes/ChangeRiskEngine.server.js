@@ -11,7 +11,7 @@ ChangeRiskEngine.prototype = {
      */
     analyze: function(updateSetSysId) {
         if (!updateSetSysId) {
-            gs.logError('ChangeRiskEngine.analyze: updateSetSysId is required', 'ChangeRiskEngine');
+            gs.error('ChangeRiskEngine.analyze: updateSetSysId is required', 'ChangeRiskEngine');
             return null;
         }
 
@@ -27,7 +27,7 @@ ChangeRiskEngine.prototype = {
         var writer = new x_488299_change_ri.RiskResultWriter();
         var resultSysId = writer.write(updateSetSysId, summary, scoreResult, classification);
 
-        gs.log(
+        gs.info(
             'ChangeRiskEngine: Analyzed update set "' + summary.updateSetName +
             '" — score=' + scoreResult.total + ', level=' + classification.level,
             'ChangeRiskEngine'

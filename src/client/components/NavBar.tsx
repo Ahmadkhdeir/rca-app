@@ -9,7 +9,7 @@ export default function NavBar({ activeView }: Props) {
         <nav className="nav">
             <div className="nav__brand">
                 <div className="nav__icon" aria-hidden="true">
-                    <img src="cra.svg" width="1230" height="1230" /> 
+                    <img src="cra-logo.svg" alt="Change Risk Analyzer" />
                 </div>
                 <div className="nav__wordmark">
                     <span className="nav__name">Change Risk Analyzer</span>

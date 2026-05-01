@@ -153,8 +153,10 @@
     text-transform: uppercase;
     white-space: nowrap;
 }
-.ap-state--in_progress { background: #fef3c7; color: #92400e; }
-.ap-state--complete    { background: rgba(45,164,78,0.12); color: #1a7a3f; }
+.ap-state--in_progress { background: #fff0d6; color: #b45309; }
+.ap-state--complete    { background: #dcfce7; color: #166534; }
+.ap-state--loaded      { background: #dbeafe; color: #1e40af; }
+.ap-state--ignore      { background: #f1f5f9; color: #64748b; }
 
 /* ---- Stages ---- */
 .ap-stages {
@@ -331,6 +333,10 @@
 
 /* Tags */
 .ap-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.ap-tags__empty { font-size: 13px; color: #94a3b8; font-style: italic; }
+.ap-tag--more { background: transparent; border: 1px dashed currentColor; cursor: pointer; font-weight: 600; }
+.ap-tag--more:hover { opacity: 0.75; }
+.ap-result__h-count { margin-left: 6px; font-size: 12px; font-weight: 500; color: #94a3b8; }
 .ap-tag {
     padding: 4px 10px;
     background: rgba(45,158,223,0.08);
@@ -464,6 +470,8 @@
     transition: border-color .12s;
 }
 .ap-modal__note:focus { border-color: #2D9EDF; }
+.ap-modal__hint { font-size: 13px; color: #94a3b8; padding: 8px 0; }
+.ap-modal__err  { font-size: 13px; color: #dc2626; margin-top: 10px; }
 .ap-modal__footer {
     display: flex;
     justify-content: flex-end;
