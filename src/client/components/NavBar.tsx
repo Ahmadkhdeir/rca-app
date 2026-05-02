@@ -19,15 +19,24 @@ export default function NavBar({ activeView }: Props) {
             <div className="nav__links">
                 <button className={`nav__link${activeView === 'dashboard' ? ' nav__link--on' : ''}`}
                     onClick={() => navigate('dashboard')}>
-                    <span className="nav__link-icon">◈</span> Dashboard
+                    <svg className="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>
+                    </svg>
+                    Dashboard
                 </button>
                 <button className={`nav__link${activeView === 'analyze' ? ' nav__link--on' : ''}`}
                     onClick={() => navigate('analyze')}>
-                    <span className="nav__link-icon">▶</span> Analyze
+                    <svg className="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                    </svg>
+                    Analyze
                 </button>
                 <button className={`nav__link${activeView === 'list' ? ' nav__link--on' : ''}`}
                     onClick={() => navigate('list')}>
-                    <span className="nav__link-icon">≡</span> Analyses
+                    <svg className="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/>
+                    </svg>
+                    Analyses
                 </button>
             </div>
 

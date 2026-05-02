@@ -28,6 +28,9 @@ export interface RiskResult {
     reasons?: string | FieldRef;
     recommendations?: string | FieldRef;
     affected_tables?: string | FieldRef;
+    reviewer?: FieldRef;
+    reviewer_note?: string | FieldRef;
+    review_status?: string | FieldRef;
 }
 
 // Safely read value from a plain string or a {value, display_value} object
@@ -113,7 +116,7 @@ export async function fetchRiskResults(filterLevel?: string | null, limit = 25):
         sysparm_query: query,
         sysparm_limit: String(limit),
         sysparm_display_value: 'all',
-        sysparm_fields: 'sys_id,number,update_set,risk_level,risk_score,record_count,analyzed_by,analyzed_at,reasons,recommendations,affected_tables',
+        sysparm_fields: 'sys_id,number,update_set,risk_level,risk_score,record_count,analyzed_by,analyzed_at,reasons,recommendations,affected_tables,reviewer,reviewer_note,review_status',
     });
     const res = await fetch(`/api/now/table/x_488299_change_ri_risk_result?${params}`, {
         headers: JSON_HEADERS,
@@ -184,9 +187,43 @@ export async function assignReviewer(resultSysId: string, reviewerSysId: string,
     const res = await fetch(`/api/now/table/x_488299_change_ri_risk_result/${resultSysId}`, {
         method: 'PATCH',
         headers: { ...TOKEN_HEADER, 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ reviewer: reviewerSysId, reviewer_note: note }),
+        body: JSON.stringify({ reviewer: reviewerSysId, reviewer_note: note, review_status: 'pending_review' }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
+export async function updateReviewStatus(resultSysId: string, status: 'approved' | 'rejected'): Promise<void> {
+    const res = await fetch(`/api/now/table/x_488299_change_ri_risk_result/${resultSysId}`, {
+        method: 'PATCH',
+        headers: { ...TOKEN_HEADER, 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ review_status: status }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
+export async function clearReviewer(resultSysId: string): Promise<void> {
+    const res = await fetch(`/api/now/table/x_488299_change_ri_risk_result/${resultSysId}`, {
+        method: 'PATCH',
+        headers: { ...TOKEN_HEADER, 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ reviewer: '', reviewer_note: '', review_status: 'not_assigned' }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
+export async function fetchRiskResultByUpdateSet(updateSetSysId: string): Promise<RiskResult | null> {
+    const params = new URLSearchParams({
+        sysparm_query: `update_set=${updateSetSysId}`,
+        sysparm_limit: '1',
+        sysparm_display_value: 'all',
+        sysparm_fields:
+            'sys_id,number,update_set,risk_level,risk_score,record_count,analyzed_by,analyzed_at,reasons,recommendations,affected_tables,reviewer,reviewer_note,review_status',
+    });
+    const res = await fetch(`/api/now/table/x_488299_change_ri_risk_result?${params}`, {
+        headers: JSON_HEADERS,
+    });
+    const json = await res.json();
+    const results: RiskResult[] = json?.result ?? [];
+    return results[0] ?? null;
 }
 
 export async function fetchRiskResult(sysId: string): Promise<RiskResult | null> {
@@ -197,7 +234,7 @@ export async function fetchRiskResult(sysId: string): Promise<RiskResult | null>
         sysparm_limit: '1',
         sysparm_display_value: 'all',
         sysparm_fields:
-            'sys_id,number,update_set,risk_level,risk_score,record_count,analyzed_by,analyzed_at,reasons,recommendations,affected_tables',
+            'sys_id,number,update_set,risk_level,risk_score,record_count,analyzed_by,analyzed_at,reasons,recommendations,affected_tables,reviewer,reviewer_note,review_status',
     });
     const res = await fetch(`/api/now/table/x_488299_change_ri_risk_result?${params}`, {
         headers: JSON_HEADERS,

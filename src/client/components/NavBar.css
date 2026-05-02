@@ -106,8 +106,15 @@
 }
 
 .nav__link-icon {
-    font-size: 14px;
-    opacity: 0.9;
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+    opacity: 0.85;
+    transition: opacity 0.15s;
+}
+.nav__link--on .nav__link-icon,
+.nav__link:hover .nav__link-icon {
+    opacity: 1;
 }
 
 /* CTA */

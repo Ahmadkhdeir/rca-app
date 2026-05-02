@@ -1,7 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
 import ScoreGauge from './ScoreGauge';
 import AIExplainPanel from './AIExplainPanel';
-import { fetchUpdateSets, analyzeUpdateSet, fetchUsers, assignReviewer, type UpdateSet, type AnalysisApiResult, type SysUser } from '../services/api';
+import ReviewerPanel from './ReviewerPanel';
+import {
+    fetchUpdateSets,
+    fetchRiskResultByUpdateSet,
+    fetchRiskResult,
+    analyzeUpdateSet,
+    val,
+    type UpdateSet,
+    type AnalysisApiResult,
+    type RiskResult,
+} from '../services/api';
 import './AnalyzePage.css';
 
 /* -------------------------------------------------------------------------- */
@@ -115,6 +125,32 @@ const META: Record<string, { accent: string; bg: string; text: string }> = {
     medium: { accent: '#f59e0b', bg: '#fffbeb', text: '#92400e' },
     low:    { accent: '#10b981', bg: '#ecfdf5', text: '#065f46' },
 };
+
+/* -------------------------------------------------------------------------- */
+/* Map stored RiskResult → local AnalysisResult                               */
+/* -------------------------------------------------------------------------- */
+
+function parseFactors(reasons: string): { label: string; pts: number }[] {
+    return reasons.split('\n')
+        .map(line => line.match(/•\s+(.+?)\s+\(([+-]?\d+)\s+pts?\)/))
+        .filter(Boolean)
+        .map(m => ({ label: m![1].trim(), pts: parseInt(m![2], 10) }));
+}
+
+function riskResultToLocal(r: RiskResult): AnalysisResult {
+    const level = (val(r.risk_level) || 'low') as 'high' | 'medium' | 'low';
+    return {
+        score:           parseInt(val(r.risk_score), 10) || 0,
+        level,
+        recordCount:     parseInt(val(r.record_count), 10) || 0,
+        sensitiveTables: 0,
+        rulesModified:   0,
+        aclChanges:      0,
+        factors:         parseFactors(val(r.reasons)),
+        recommendations: val(r.recommendations).split('\n').filter(s => s.trim().length > 0),
+        affectedTables:  val(r.affected_tables).split(',').map(s => s.trim()).filter(Boolean),
+    };
+}
 
 /* -------------------------------------------------------------------------- */
 /* Helpers                                                                     */
@@ -235,33 +271,6 @@ function UpdateSetPicker({ value, onSelect }: { value: UpdateSet | null; onSelec
     );
 }
 
-/* -------------------------------------------------------------------------- */
-/* User avatar                                                                 */
-/* -------------------------------------------------------------------------- */
-
-function UserAvatar({ user, size = 32 }: { user: SysUser; size?: number }) {
-    const [failed, setFailed] = useState(false);
-    const initial = user.name.charAt(0).toUpperCase();
-    const style: React.CSSProperties = {
-        width: size, height: size, borderRadius: '50%',
-        background: '#6366f1', color: '#fff',
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: size * 0.4, fontWeight: 700, flexShrink: 0, overflow: 'hidden',
-    };
-    if (user.photo && !failed) {
-        return (
-            <span style={style}>
-                <img
-                    src={`/api/now/attachment/${user.photo}/file`}
-                    onError={() => setFailed(true)}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    alt={user.name}
-                />
-            </span>
-        );
-    }
-    return <span style={style}>{initial}</span>;
-}
 
 /* -------------------------------------------------------------------------- */
 /* Affected tables                                                             */
@@ -343,107 +352,6 @@ function StageCard({
     );
 }
 
-/* -------------------------------------------------------------------------- */
-/* Reviewer modal                                                              */
-/* -------------------------------------------------------------------------- */
-
-function ReviewerModal({ resultSysId, onClose, onAssign }: {
-    resultSysId: string;
-    onClose: () => void;
-    onAssign: (r: SysUser, note: string) => void;
-}) {
-    const [q, setQ]           = useState('');
-    const [users, setUsers]   = useState<SysUser[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [picked, setPicked] = useState<SysUser | null>(null);
-    const [note, setNote]     = useState('');
-    const [saving, setSaving] = useState(false);
-    const [saveErr, setSaveErr] = useState<string | null>(null);
-
-    useEffect(() => {
-        if (!q.trim()) { setUsers([]); return; }
-        setLoading(true);
-        const t = setTimeout(() => {
-            fetchUsers(q)
-                .then(setUsers)
-                .catch(() => setUsers([]))
-                .finally(() => setLoading(false));
-        }, 300);
-        return () => clearTimeout(t);
-    }, [q]);
-
-    async function handleAssign() {
-        if (!picked) return;
-        setSaving(true);
-        setSaveErr(null);
-        try {
-            await assignReviewer(resultSysId, picked.sys_id, note);
-            onAssign(picked, note);
-        } catch {
-            setSaveErr('Could not save — please try again.');
-            setSaving(false);
-        }
-    }
-
-    return (
-        <div className="ap-modal-backdrop" onClick={onClose}>
-            <div className="ap-modal" onClick={(e) => e.stopPropagation()}>
-                <div className="ap-modal__header">
-                    <h3>Assign Reviewer</h3>
-                    <button className="ap-modal__x" onClick={onClose}>×</button>
-                </div>
-                <div className="ap-modal__body">
-                    <p className="ap-modal__sub">Search for a user to review this change before promotion.</p>
-                    <input
-                        autoFocus
-                        className="ap-picker__search"
-                        placeholder="Search by name…"
-                        value={q}
-                        onChange={(e) => { setQ(e.target.value); setPicked(null); }}
-                    />
-                    {loading && <div className="ap-modal__hint">Searching…</div>}
-                    {!loading && q.trim() && users.length === 0 && (
-                        <div className="ap-modal__hint">No users found</div>
-                    )}
-                    {!loading && users.length > 0 && (
-                        <div className="ap-rev-list">
-                            {users.map(u => (
-                                <button key={u.sys_id}
-                                    className={`ap-rev${picked?.sys_id === u.sys_id ? ' ap-rev--on' : ''}`}
-                                    onClick={() => setPicked(u)}>
-                                    <UserAvatar user={u} size={36} />
-                                    <div className="ap-rev__info">
-                                        <span className="ap-rev__name">{u.name}</span>
-                                        <span className="ap-rev__role">{u.email || u.title || ''}</span>
-                                    </div>
-                                    {picked?.sys_id === u.sys_id && (
-                                        <svg viewBox="0 0 24 24" width="18" height="18">
-                                            <path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#10b981"
-                                                strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-                                        </svg>
-                                    )}
-                                </button>
-                            ))}
-                        </div>
-                    )}
-                    <label className="ap-modal__label">Note (optional)</label>
-                    <textarea className="ap-modal__note" rows={3}
-                        placeholder="Add context for the reviewer…"
-                        value={note} onChange={(e) => setNote(e.target.value)} />
-                    {saveErr && <div className="ap-modal__err">{saveErr}</div>}
-                </div>
-                <div className="ap-modal__footer">
-                    <button className="ap-btn ap-btn--ghost" onClick={onClose}>Cancel</button>
-                    <button className="ap-btn ap-btn--primary"
-                        disabled={!picked || saving}
-                        onClick={handleAssign}>
-                        {saving ? 'Saving…' : 'Assign reviewer'}
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-}
 
 /* -------------------------------------------------------------------------- */
 /* Toast                                                                       */
@@ -476,11 +384,15 @@ export default function AnalyzePage() {
     const [result, setResult] = useState<AnalysisResult | null>(null);
 
     const [resultSysId, setResultSysId] = useState<string | null>(null);
-    const [showReviewerModal, setShowReviewerModal] = useState(false);
-    const [assignedReviewer, setAssignedReviewer] = useState<SysUser | null>(null);
-    const [acknowledged, setAcknowledged] = useState(false);
-    const [chgNumber, setChgNumber] = useState<string | null>(null);
     const [toast, setToast] = useState<{ msg: string; kind?: 'success' | 'info' } | null>(null);
+
+    // true while auto-checking for an existing result after selecting a US
+    const [checking, setChecking] = useState(false);
+    // true when the result was loaded from a previous analysis (not freshly run)
+    const [loadedFromDb, setLoadedFromDb] = useState(false);
+    const [analyzedAt, setAnalyzedAt] = useState('');
+    // full RiskResult from DB — needed to drive ReviewerPanel
+    const [dbRecord, setDbRecord] = useState<RiskResult | null>(null);
 
     const showToast = (msg: string, kind: 'success' | 'info' = 'success') => {
         setToast({ msg, kind });
@@ -493,15 +405,45 @@ export default function AnalyzePage() {
         setStageValues(Object.fromEntries(STAGES.map(s => [s.id, null])) as any);
         setResult(null);
         setResultSysId(null);
-        setAssignedReviewer(null);
-        setAcknowledged(false);
-        setChgNumber(null);
+        setLoadedFromDb(false);
+        setAnalyzedAt('');
+        setDbRecord(null);
+    }
+
+    function handleRecordUpdated(patch: Partial<RiskResult>) {
+        setDbRecord(prev => prev ? { ...prev, ...patch } : prev);
+    }
+
+    async function handleSelectUpdateSet(us: UpdateSet) {
+        setSelected(us);
+        reset();
+        setChecking(true);
+        try {
+            const existing = await fetchRiskResultByUpdateSet(us.sys_id);
+            if (existing) {
+                setResultSysId(existing.sys_id);
+                setResult(riskResultToLocal(existing));
+                setAnalyzedAt(val(existing.analyzed_at));
+                setLoadedFromDb(true);
+                setDbRecord(existing);
+                setPhase('done');
+            }
+        } catch {
+            // ignore — will fall back to showing Run Analysis
+        } finally {
+            setChecking(false);
+        }
     }
 
     async function runAnalysis() {
         if (!selected) return;
-        reset();
+        setLoadedFromDb(false);
+        setAnalyzedAt('');
         setPhase('running');
+        setResult(null);
+        setResultSysId(null);
+        setStageStatus(Object.fromEntries(STAGES.map(s => [s.id, 'pending'])) as any);
+        setStageValues(Object.fromEntries(STAGES.map(s => [s.id, null])) as any);
 
         // Fire real analysis — runs in parallel with stage animations
         const analysisPromise = analyzeUpdateSet(selected.sys_id);
@@ -562,6 +504,9 @@ export default function AnalyzePage() {
             affectedTables:  api.affected_tables,
         });
         setPhase('done');
+
+        // Fetch full DB record so ReviewerPanel has a proper RiskResult to work with
+        fetchRiskResult(api.result_sys_id).then(rec => { if (rec) setDbRecord(rec); });
     }
 
     const m = result ? META[result.level] : null;
@@ -573,31 +518,47 @@ export default function AnalyzePage() {
             <div className="ap__header">
                 <div>
                     <h1 className="ap__title">Analyze an Update Set</h1>
-                    <p className="ap__sub">Run a live risk analysis with a step-by-step breakdown.</p>
+                    <p className="ap__sub">Select an update set to view its risk analysis or run a new one.</p>
                 </div>
                 {phase === 'done' && (
-                    <button className="ap-btn ap-btn--ghost" onClick={reset}>↺ Run another</button>
+                    <button className="ap-btn ap-btn--ghost" onClick={() => { setSelected(null); reset(); }}>↺ New analysis</button>
                 )}
             </div>
 
             {/* Picker + run row */}
             <div className="ap-runrow">
-                <UpdateSetPicker value={selected} onSelect={(s) => { setSelected(s); reset(); }} />
-                <button className="ap-btn ap-btn--primary ap-btn--lg"
-                    disabled={!selected || phase === 'running'}
-                    onClick={runAnalysis}>
-                    {phase === 'running' ? (
-                        <>
-                            <span className="ap-spin" /> Analyzing…
-                        </>
-                    ) : (
-                        <>▶ Run Analysis</>
-                    )}
-                </button>
+                <UpdateSetPicker value={selected} onSelect={handleSelectUpdateSet} />
+                {checking ? (
+                    <button className="ap-btn ap-btn--primary ap-btn--lg" disabled>
+                        <span className="ap-spin" /> Checking…
+                    </button>
+                ) : (
+                    <button className="ap-btn ap-btn--primary ap-btn--lg"
+                        disabled={!selected || phase === 'running'}
+                        onClick={runAnalysis}>
+                        {phase === 'running' ? (
+                            <><span className="ap-spin" /> Analyzing…</>
+                        ) : loadedFromDb ? (
+                            <>
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M21 2v6h-6M3 12a9 9 0 0115-6.7L21 8M3 22v-6h6M21 12a9 9 0 01-15 6.7L3 16"/>
+                                </svg>
+                                Re-analyze
+                            </>
+                        ) : (
+                            <>
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                                </svg>
+                                Run Analysis
+                            </>
+                        )}
+                    </button>
+                )}
             </div>
 
-            {/* Stages */}
-            {phase !== 'idle' && (
+            {/* Stages — only during a live analysis run */}
+            {(phase === 'running' || (phase === 'done' && !loadedFromDb)) && (
                 <div className="ap-stages">
                     {STAGES.map(s => (
                         <StageCard key={s.id} stage={s} status={stageStatus[s.id]} value={stageValues[s.id]} />
@@ -608,6 +569,18 @@ export default function AnalyzePage() {
             {/* Result */}
             {result && m && (
                 <div className="ap-result" style={{ borderTop: `4px solid ${m.accent}` }}>
+
+                    {/* Loaded-from-DB banner */}
+                    {loadedFromDb && (
+                        <div className="ap-loaded-banner">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                            </svg>
+                            This Update Set was previously analyzed{analyzedAt ? ` ${formatAge(analyzedAt)}` : ''}.
+                            Click <strong>Re-analyze</strong> to run a fresh analysis.
+                        </div>
+                    )}
+
                     <div className="ap-result__top" style={{ background: m.bg }}>
                         <div className="ap-result__head">
                             <div className="ap-result__head-text">
@@ -675,80 +648,13 @@ export default function AnalyzePage() {
                         />
                     </div>
 
-                    {/* Action panel */}
-                    <div className="ap-actions">
-                        <h3 className="ap-actions__h">Next steps</h3>
-                        <div className="ap-actions__grid">
-                            <button className="ap-action"
-                                onClick={() => setShowReviewerModal(true)}
-                                disabled={!!assignedReviewer}>
-                                <span className="ap-action__icon" style={{ background: '#eef2ff', color: '#4338ca' }}>👤</span>
-                                <div className="ap-action__text">
-                                    <span className="ap-action__title">
-                                        {assignedReviewer ? 'Reviewer assigned' : 'Assign Reviewer'}
-                                    </span>
-                                    <span className="ap-action__desc">
-                                        {assignedReviewer
-                                            ? `Pending review by ${assignedReviewer.name}`
-                                            : 'Forward to a security or process lead'}
-                                    </span>
-                                </div>
-                                {assignedReviewer && (
-                                    <UserAvatar user={assignedReviewer} size={32} />
-                                )}
-                            </button>
-
-                            <button className="ap-action"
-                                onClick={() => {
-                                    const num = 'CHG' + String(10000 + Math.floor(Math.random() * 9999)).padStart(7, '0');
-                                    setChgNumber(num);
-                                    showToast(`Change request ${num} created and linked`);
-                                }}
-                                disabled={!!chgNumber}>
-                                <span className="ap-action__icon" style={{ background: '#fffbeb', color: '#92400e' }}>📋</span>
-                                <div className="ap-action__text">
-                                    <span className="ap-action__title">
-                                        {chgNumber ? `Linked to ${chgNumber}` : 'Create Change Ticket'}
-                                    </span>
-                                    <span className="ap-action__desc">
-                                        {chgNumber ? 'Visible in CAB queue' : 'Open a change_request pre-filled with this analysis'}
-                                    </span>
-                                </div>
-                            </button>
-
-                            <button className="ap-action"
-                                onClick={() => {
-                                    setAcknowledged(true);
-                                    showToast('Marked as acknowledged');
-                                }}
-                                disabled={acknowledged}>
-                                <span className="ap-action__icon" style={{ background: '#ecfdf5', color: '#065f46' }}>
-                                    {acknowledged ? '✓' : '👁'}
-                                </span>
-                                <div className="ap-action__text">
-                                    <span className="ap-action__title">
-                                        {acknowledged ? 'Acknowledged' : 'Mark as Acknowledged'}
-                                    </span>
-                                    <span className="ap-action__desc">
-                                        {acknowledged ? 'You confirmed you have reviewed the result' : 'Flag this result as personally reviewed'}
-                                    </span>
-                                </div>
-                            </button>
+                    {/* Reviewer assignment — shown as soon as DB record is available */}
+                    {dbRecord && (
+                        <div className="ap-reviewer-wrap">
+                            <ReviewerPanel record={dbRecord} onUpdated={handleRecordUpdated} />
                         </div>
-                    </div>
+                    )}
                 </div>
-            )}
-
-            {showReviewerModal && resultSysId && (
-                <ReviewerModal
-                    resultSysId={resultSysId}
-                    onClose={() => setShowReviewerModal(false)}
-                    onAssign={(r, note) => {
-                        setAssignedReviewer(r);
-                        setShowReviewerModal(false);
-                        showToast(`Assigned to ${r.name}${note ? ' with note' : ''}`);
-                    }}
-                />
             )}
 
             {toast && <Toast msg={toast.msg} kind={toast.kind} />}

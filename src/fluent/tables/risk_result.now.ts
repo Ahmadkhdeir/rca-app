@@ -62,5 +62,15 @@ export const x_488299_change_ri_risk_result = Table({
             label: 'Reviewer Note',
             maxLength: 500,
         }),
+        review_status: StringColumn({
+            label: 'Review Status',
+            choices: {
+                not_assigned:   'Not Assigned',
+                pending_review: 'Pending Review',
+                approved:       'Approved',
+                rejected:       'Rejected',
+            },
+            defaultValue: 'not_assigned',
+        }),
     },
 })

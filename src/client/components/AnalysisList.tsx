@@ -4,12 +4,12 @@ import { navigate } from '../utils/navigation';
 import { cacheRecord } from '../utils/recordCache';
 import AnalysisCard from './AnalysisCard';
 
-const FILTERS = [
+const FILTERS: { key: string | null; label: string; dot?: string }[] = [
     { key: null,     label: 'All' },
-    { key: 'high',   label: '🔴 High' },
-    { key: 'medium', label: '🟡 Medium' },
-    { key: 'low',    label: '🟢 Low' },
-] as const;
+    { key: 'high',   label: 'High',   dot: '#ef4444' },
+    { key: 'medium', label: 'Medium', dot: '#f59e0b' },
+    { key: 'low',    label: 'Low',    dot: '#10b981' },
+];
 
 interface Props { initialFilter: string | null; }
 
@@ -46,23 +46,38 @@ export default function AnalysisList({ initialFilter }: Props) {
                     </p>
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
-                    {FILTERS.map(({ key, label }) => (
-                        <button
-                            key={String(key)}
-                            onClick={() => handleFilter(key)}
-                            style={{
-                                padding: '7px 16px',
-                                borderRadius: 20,
-                                border: '1.5px solid',
-                                borderColor: filter === key ? '#6366f1' : '#e2e8f0',
-                                background: filter === key ? '#6366f1' : '#fff',
-                                color: filter === key ? '#fff' : '#374151',
-                                fontSize: 13, fontWeight: 600,
-                                cursor: 'pointer', fontFamily: 'inherit',
-                                transition: 'all .15s',
-                            }}
-                        >{label}</button>
-                    ))}
+                    {FILTERS.map(({ key, label, dot }) => {
+                        const active = filter === key;
+                        return (
+                            <button
+                                key={String(key)}
+                                onClick={() => handleFilter(key)}
+                                style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                                    padding: '6px 14px',
+                                    borderRadius: 20,
+                                    border: '1.5px solid',
+                                    borderColor: active ? '#244991' : '#e2e8f0',
+                                    background: active ? '#244991' : '#fff',
+                                    color: active ? '#fff' : '#374151',
+                                    fontSize: 13, fontWeight: 600,
+                                    cursor: 'pointer', fontFamily: 'inherit',
+                                    transition: 'all .15s',
+                                    boxShadow: active ? '0 2px 8px rgba(36,73,145,0.2)' : 'none',
+                                }}
+                            >
+                                {dot && (
+                                    <span style={{
+                                        width: 8, height: 8, borderRadius: '50%',
+                                        background: active ? 'rgba(255,255,255,0.85)' : dot,
+                                        flexShrink: 0,
+                                        boxShadow: active ? 'none' : `0 0 0 2px ${dot}22`,
+                                    }} />
+                                )}
+                                {label}
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
 

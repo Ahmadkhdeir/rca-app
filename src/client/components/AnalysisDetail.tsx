@@ -4,6 +4,7 @@ import { navigate } from '../utils/navigation';
 import { getCachedRecord } from '../utils/recordCache';
 import ScoreGauge from './ScoreGauge';
 import AIExplainPanel from './AIExplainPanel';
+import ReviewerPanel from './ReviewerPanel';
 import './AnalysisDetail.css';
 
 const META: Record<string, { accent: string; bg: string; text: string; border: string }> = {
@@ -56,6 +57,10 @@ export default function AnalysisDetail({ sysId }: Props) {
     const [record, setRecord] = useState<RiskResult | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
+
+    function handleReviewerUpdated(patch: Partial<RiskResult>) {
+        setRecord(prev => prev ? { ...prev, ...patch } : prev);
+    }
 
     useEffect(() => {
         const cached = getCachedRecord(sysId);
@@ -207,6 +212,8 @@ export default function AnalysisDetail({ sysId }: Props) {
                                 affectedTables: tables,
                             }}
                         />
+
+                        <ReviewerPanel record={record} onUpdated={handleReviewerUpdated} />
                     </div>
                 </div>
             </div>

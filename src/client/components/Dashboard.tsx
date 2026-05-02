@@ -86,12 +86,10 @@ export default function Dashboard() {
     const [stats, setStats] = useState<RiskStats>({ low: 0, medium: 0, high: 0, total: 0 });
     const [recent, setRecent] = useState<RiskResult[]>([]);
     const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
     const [usingMock, setUsingMock] = useState(false);
 
-    function load(isRefresh = false) {
-        if (isRefresh) setRefreshing(true);
-        else setLoading(true);
+    function load() {
+        setLoading(true);
         setUsingMock(false);
         Promise.all([fetchRiskStats(), fetchRiskResults(null, 20)])
             .then(([s, r]) => {
@@ -109,18 +107,20 @@ export default function Dashboard() {
                 setRecent(MOCK_RESULTS);
                 setUsingMock(true);
             })
-            .finally(() => { setLoading(false); setRefreshing(false); });
+            .finally(() => setLoading(false));
     }
 
     useEffect(() => { load(); }, []);
 
     const pct = (n: number) => stats.total > 0 ? Math.round(n / stats.total * 100) : 0;
 
-    const trendData = [...recent].reverse().map(r => ({
-        score: parseInt(val(r.risk_score) || '0', 10),
-        level: val(r.risk_level) || 'low',
-        name: resultName(r),
-    }));
+    const trendData = [...recent].reverse()
+        .map(r => ({
+            score: parseInt(val(r.risk_score) || '0', 10),
+            level: val(r.risk_level) || 'low',
+            name: resultName(r),
+        }))
+        .filter(d => d.score > 0);
 
     const miniList = recent.slice(0, 6);
 
@@ -130,29 +130,10 @@ export default function Dashboard() {
             <div className="db__hero">
                 <div className="db__hero-content">
                     <div className="db__hero-text">
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                            <h1 className="db__title" style={{ margin: 0 }}>
-                                Risk Dashboard
-                                {usingMock && <span className="db__demo-tag">DEMO DATA</span>}
-                            </h1>
-                            <button
-                                onClick={() => load(true)}
-                                disabled={refreshing}
-                                title="Refresh dashboard"
-                                style={{
-                                    display: 'inline-flex', alignItems: 'center', gap: 5,
-                                    padding: '5px 12px', borderRadius: 8,
-                                    border: '1px solid rgba(36,73,145,0.18)',
-                                    background: '#fff', color: '#244991',
-                                    fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                                    fontFamily: 'inherit', flexShrink: 0,
-                                    opacity: refreshing ? 0.6 : 1,
-                                    transition: 'opacity .15s',
-                                }}>
-                                <span style={{ display: 'inline-block', animation: refreshing ? 'db-spin .7s linear infinite' : 'none' }}>↻</span>
-                                {refreshing ? 'Refreshing…' : 'Refresh'}
-                            </button>
-                        </div>
+                        <h1 className="db__title">
+                            Risk Dashboard
+                            {usingMock && <span className="db__demo-tag">DEMO DATA</span>}
+                        </h1>
                         <p className="db__sub">Analyze Update Sets and classify change risk before deployment</p>
                     </div>
                     {stats.total > 0 && (
@@ -190,7 +171,7 @@ export default function Dashboard() {
                     <div className="db__card-header">
                         <div>
                             <h2 className="db__card-title" style={{ marginBottom: 2 }}>Score Trend</h2>
-                            <p className="db__card-sub">Last {trendData.length} analys{trendData.length === 1 ? 'is' : 'es'} · oldest → newest · threshold lines at 30 (Medium) and 65 (High)</p>
+                            <p className="db__card-sub">Each bar is one analysis run, colored by risk level — oldest on the left, newest on the right. Score &gt; 65 = High · 30–65 = Medium · &lt; 30 = Low</p>
                         </div>
                         <button className="db__view-all" onClick={() => navigate('list')}>View all →</button>
                     </div>

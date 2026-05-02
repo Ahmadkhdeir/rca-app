@@ -37,6 +37,14 @@ declare global {
                         table: 'sys_module'
                         id: '4855d5927131475dae6985ef3130a49a'
                     }
+                    'br-notify-reviewer': {
+                        table: 'sys_script'
+                        id: 'c4e7a2f1b83d4095a61e3f8d27c5b049'
+                    }
+                    'br-stale-detector': {
+                        table: 'sys_script'
+                        id: 'f2d8e1a3c7b04f6d9e5a2c8b1d4f7e03'
+                    }
                     br0: {
                         table: 'sys_script'
                         id: '29c75bd0949345c9aa16d423f827b745'
@@ -45,6 +53,7 @@ declare global {
                     'components/AnalyzePage.css': {
                         table: 'sys_ux_theme_asset'
                         id: '5ca610e74450483a94bce51faba356ca'
+                        deleted: true
                     }
                     cs0: {
                         table: 'sys_script_client'
@@ -78,6 +87,14 @@ declare global {
                     'si-update-set-reader': {
                         table: 'sys_script_include'
                         id: '39eadbc2463046958a5c9934c31905c7'
+                    }
+                    'src_server_business-rules_NotifyReviewer_server_js': {
+                        table: 'sys_module'
+                        id: '694482ad613240cba7aa462e7904a3bf'
+                    }
+                    'src_server_business-rules_StaleDetector_server_js': {
+                        table: 'sys_module'
+                        id: '3e28d60c92954deeb28c6997db944378'
                     }
                     'src_server_rest-api_RiskAnalyzeApi_server_js': {
                         table: 'sys_module'
@@ -163,6 +180,15 @@ declare global {
                             name: 'x_488299_change_ri_risk_result'
                             element: 'risk_level'
                             value: 'medium'
+                        }
+                    },
+                    {
+                        table: 'sys_choice'
+                        id: '153bddee7c6c4be5be4e0c166ee6f1a0'
+                        key: {
+                            name: 'x_488299_change_ri_risk_result'
+                            element: 'review_status'
+                            value: 'approved'
                         }
                     },
                     {
@@ -264,6 +290,15 @@ declare global {
                         }
                     },
                     {
+                        table: 'sys_choice'
+                        id: '85206042e9af4d16b512a1b9262b3ca1'
+                        key: {
+                            name: 'x_488299_change_ri_risk_result'
+                            element: 'review_status'
+                            value: 'rejected'
+                        }
+                    },
+                    {
                         table: 'sys_documentation'
                         id: '86b94e7c53b14b0a897dba6580899a1d'
                         key: {
@@ -352,6 +387,14 @@ declare global {
                         }
                     },
                     {
+                        table: 'sys_choice_set'
+                        id: 'bdb1500aca3c4f8bb90f2d410165aa11'
+                        key: {
+                            name: 'x_488299_change_ri_risk_result'
+                            element: 'review_status'
+                        }
+                    },
+                    {
                         table: 'sys_documentation'
                         id: 'c9c19030b2a841909fd4264943f25f17'
                         key: {
@@ -378,11 +421,28 @@ declare global {
                         }
                     },
                     {
+                        table: 'sys_choice'
+                        id: 'd1e0da9d441d4ae8b978f405f961f47c'
+                        key: {
+                            name: 'x_488299_change_ri_risk_result'
+                            element: 'review_status'
+                            value: 'pending_review'
+                        }
+                    },
+                    {
                         table: 'sys_dictionary'
                         id: 'd7dca0c80405424f8011af4f259a3150'
                         key: {
                             name: 'x_488299_change_ri_risk_result'
                             element: 'reviewer'
+                        }
+                    },
+                    {
+                        table: 'sys_dictionary'
+                        id: 'd8b70037817a4cdd995881b2603e2c64'
+                        key: {
+                            name: 'x_488299_change_ri_risk_result'
+                            element: 'review_status'
                         }
                     },
                     {
@@ -411,11 +471,29 @@ declare global {
                     },
                     {
                         table: 'sys_documentation'
+                        id: 'e87f68c51b874d878ae99a326285513b'
+                        key: {
+                            name: 'x_488299_change_ri_risk_result'
+                            element: 'review_status'
+                            language: 'en'
+                        }
+                    },
+                    {
+                        table: 'sys_documentation'
                         id: 'f058508258724db580bb0fa9a7b3e1df'
                         key: {
                             name: 'x_488299_change_ri_risk_result'
                             element: 'reviewer'
                             language: 'en'
+                        }
+                    },
+                    {
+                        table: 'sys_choice'
+                        id: 'f8cd05af5c514a8594b0a215ea07f8c8'
+                        key: {
+                            name: 'x_488299_change_ri_risk_result'
+                            element: 'review_status'
+                            value: 'not_assigned'
                         }
                     },
                     {
