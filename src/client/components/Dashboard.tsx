@@ -3,7 +3,6 @@ import { fetchRiskStats, fetchRiskResults, val, disp, resultName, sysId as getSy
 import { navigate } from '../utils/navigation';
 import { cacheRecord } from '../utils/recordCache';
 import DonutChart from './DonutChart';
-import RiskTrendChart from './RiskTrendChart';
 import { MOCK_STATS, MOCK_RESULTS } from '../utils/mockData';
 import './Dashboard.css';
 
@@ -43,6 +42,38 @@ function StatCard({ metaKey, value, onClick, index }: { metaKey: string; value: 
             </div>
             <span className="db-stat__label">{m.label}</span>
             <div className="db-stat__bar" style={{ background: m.accent }} />
+        </button>
+    );
+}
+
+const REVIEW_META: Record<string, { label: string; color: string; bg: string }> = {
+    not_assigned:   { label: 'Not Assigned',  color: '#64748b', bg: '#f1f5f9' },
+    pending_review: { label: 'Pending',        color: '#d97706', bg: '#fffbeb' },
+    approved:       { label: 'Approved',       color: '#059669', bg: '#ecfdf5' },
+    rejected:       { label: 'Rejected',       color: '#dc2626', bg: '#fef2f2' },
+};
+
+function AttentionRow({ record, index, isMock }: { record: RiskResult; index: number; isMock: boolean }) {
+    const level  = val(record.risk_level) || 'high';
+    const status = val(record.review_status) || 'not_assigned';
+    const score  = parseInt(val(record.risk_score) || '0', 10);
+    const name   = resultName(record);
+    const lm     = RISK_META[level]   ?? RISK_META.high;
+    const rm     = REVIEW_META[status] ?? REVIEW_META.not_assigned;
+
+    function handleClick() {
+        if (isMock) { navigate('analyze'); return; }
+        cacheRecord(record);
+        navigate('detail', { id: getSysId(record) }, name);
+    }
+
+    return (
+        <button className="db-attn" style={{ animationDelay: `${index * 50}ms` }} onClick={handleClick}>
+            <div className="db-attn__dot" style={{ background: lm.accent }} />
+            <span className="db-attn__name">{name}</span>
+            <span className="db-attn__badge" style={{ color: rm.color, background: rm.bg }}>{rm.label}</span>
+            <span className="db-attn__score" style={{ color: lm.text }}>{score} pts</span>
+            <span className="db-attn__arrow">›</span>
         </button>
     );
 }
@@ -91,7 +122,7 @@ export default function Dashboard() {
     function load() {
         setLoading(true);
         setUsingMock(false);
-        Promise.all([fetchRiskStats(), fetchRiskResults(null, 20)])
+        Promise.all([fetchRiskStats(), fetchRiskResults(null, 50)])
             .then(([s, r]) => {
                 if (s.total === 0 && r.length === 0) {
                     setStats(MOCK_STATS);
@@ -114,13 +145,19 @@ export default function Dashboard() {
 
     const pct = (n: number) => stats.total > 0 ? Math.round(n / stats.total * 100) : 0;
 
-    const trendData = [...recent].reverse()
-        .map(r => ({
-            score: parseInt(val(r.risk_score) || '0', 10),
-            level: val(r.risk_level) || 'low',
-            name: resultName(r),
-        }))
-        .filter(d => d.score > 0);
+    // Needs Attention: high risk not yet approved
+    const needsAttention = recent
+        .filter(r => val(r.risk_level) === 'high' && val(r.review_status) !== 'approved')
+        .slice(0, 5);
+
+    // Review status breakdown across all fetched results
+    const reviewCounts = { not_assigned: 0, pending_review: 0, approved: 0, rejected: 0 };
+    for (const r of recent) {
+        const s = (val(r.review_status) || 'not_assigned') as keyof typeof reviewCounts;
+        if (s in reviewCounts) reviewCounts[s]++;
+        else reviewCounts.not_assigned++;
+    }
+    const reviewTotal = recent.length;
 
     const miniList = recent.slice(0, 6);
 
@@ -165,19 +202,56 @@ export default function Dashboard() {
                 ))}
             </div>
 
-            {/* Trend chart — full width */}
+            {/* Needs Attention + Review Status — full width */}
             {(recent.length > 0 || !loading) && (
-                <div className="db__card db__trend-card">
+                <div className="db__card db__attention-card">
                     <div className="db__card-header">
                         <div>
-                            <h2 className="db__card-title" style={{ marginBottom: 2 }}>Score Trend</h2>
-                            <p className="db__card-sub">Each bar is one analysis run, colored by risk level — oldest on the left, newest on the right. Score &gt; 65 = High · 30–65 = Medium · &lt; 30 = Low</p>
+                            <h2 className="db__card-title">Needs Attention</h2>
+                            <p className="db__card-sub">High-risk analyses not yet approved</p>
                         </div>
-                        <button className="db__view-all" onClick={() => navigate('list')}>View all →</button>
+                        <button className="db__view-all" onClick={() => navigate('list', { filter: 'high' })}>View all →</button>
                     </div>
-                    <div className="db__trend-body">
-                        <RiskTrendChart data={trendData} />
-                    </div>
+
+                    {/* Attention list */}
+                    {needsAttention.length === 0 ? (
+                        <div className="db__attn-empty">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                            All high-risk analyses have been reviewed — you're good.
+                        </div>
+                    ) : (
+                        <div className="db__attn-list">
+                            {needsAttention.map((r, i) => (
+                                <AttentionRow key={getSysId(r)} record={r} index={i} isMock={usingMock} />
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Review status bar */}
+                    {reviewTotal > 0 && (
+                        <div className="db__review-wrap">
+                            <span className="db__review-label">Review status across {reviewTotal} analyses</span>
+                            <div className="db__review-bar">
+                                {reviewCounts.not_assigned   > 0 && <div style={{ flex: reviewCounts.not_assigned,   background: '#94a3b8' }} title={`Not Assigned: ${reviewCounts.not_assigned}`} />}
+                                {reviewCounts.pending_review > 0 && <div style={{ flex: reviewCounts.pending_review, background: '#f59e0b' }} title={`Pending: ${reviewCounts.pending_review}`} />}
+                                {reviewCounts.approved       > 0 && <div style={{ flex: reviewCounts.approved,       background: '#10b981' }} title={`Approved: ${reviewCounts.approved}`} />}
+                                {reviewCounts.rejected       > 0 && <div style={{ flex: reviewCounts.rejected,       background: '#ef4444' }} title={`Rejected: ${reviewCounts.rejected}`} />}
+                            </div>
+                            <div className="db__review-legend">
+                                {([
+                                    ['not_assigned',   '#94a3b8', 'Not Reviewed'],
+                                    ['pending_review', '#f59e0b', 'Pending'],
+                                    ['approved',       '#10b981', 'Approved'],
+                                    ['rejected',       '#ef4444', 'Rejected'],
+                                ] as const).map(([key, color, label]) => reviewCounts[key] > 0 && (
+                                    <span key={key} className="db__review-leg-item">
+                                        <span className="db__review-leg-dot" style={{ background: color }} />
+                                        {label} <strong>{reviewCounts[key]}</strong>
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 

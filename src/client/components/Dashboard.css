@@ -226,10 +226,123 @@
 }
 .db__view-all:hover { background: rgba(45,158,223,0.1); color: #244991; }
 
-/* Trend chart */
-.db__trend-card { padding-bottom: 16px; }
+/* Attention card */
+.db__attention-card { padding-bottom: 0; overflow: hidden; }
 
-.db__trend-body { padding: 0 4px; }
+.db__attn-empty {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 28px;
+    font-size: 13px;
+    color: #059669;
+    background: #ecfdf5;
+    border-radius: 10px;
+    margin: 0 0 16px;
+}
+
+.db__attn-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 16px;
+}
+
+.db-attn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 11px 12px;
+    background: transparent;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s;
+    animation: db-fade-in 0.3s ease both;
+}
+.db-attn:hover { background: #f8fafc; }
+
+.db-attn__dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.db-attn__name {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 600;
+    color: #1a2238;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.db-attn__badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 20px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.db-attn__score {
+    font-size: 12px;
+    font-weight: 700;
+    flex-shrink: 0;
+    width: 48px;
+    text-align: right;
+}
+.db-attn__arrow {
+    color: #cbd5e1;
+    font-size: 18px;
+    flex-shrink: 0;
+    transition: color 0.15s, transform 0.15s;
+}
+.db-attn:hover .db-attn__arrow { color: #2D9EDF; transform: translateX(3px); }
+
+/* Review status bar */
+.db__review-wrap {
+    border-top: 1px solid rgba(36,73,145,0.08);
+    padding: 16px 28px 20px;
+    background: #f8fafc;
+}
+.db__review-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(26,34,56,0.45);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: block;
+    margin-bottom: 8px;
+}
+.db__review-bar {
+    display: flex;
+    height: 8px;
+    border-radius: 99px;
+    overflow: hidden;
+    gap: 2px;
+    margin-bottom: 10px;
+}
+.db__review-bar > div { border-radius: 99px; transition: flex 0.4s ease; }
+.db__review-legend {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+.db__review-leg-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    color: rgba(26,34,56,0.6);
+}
+.db__review-leg-item strong { color: #1a2238; font-weight: 700; }
+.db__review-leg-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
 
 /* Donut chart */
 .db__donut-wrap {

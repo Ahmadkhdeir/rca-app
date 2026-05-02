@@ -557,6 +557,26 @@ export default function AnalyzePage() {
                 )}
             </div>
 
+            {/* Empty state hint — only when nothing selected */}
+            {!selected && !checking && phase === 'idle' && (
+                <div className="ap-hint">
+                    <div className="ap-hint__step">
+                        <span className="ap-hint__num">1</span>
+                        Select an Update Set above
+                    </div>
+                    <span className="ap-hint__sep">→</span>
+                    <div className="ap-hint__step">
+                        <span className="ap-hint__num">2</span>
+                        Load existing or run fresh analysis
+                    </div>
+                    <span className="ap-hint__sep">→</span>
+                    <div className="ap-hint__step">
+                        <span className="ap-hint__num">3</span>
+                        Assign a reviewer
+                    </div>
+                </div>
+            )}
+
             {/* Stages — only during a live analysis run */}
             {(phase === 'running' || (phase === 'done' && !loadedFromDb)) && (
                 <div className="ap-stages">
